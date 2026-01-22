@@ -1,4 +1,4 @@
-# 🧠 Knowledge Sharing Platform
+# 🧠 Mini Stack Overflow
 
 A mini "Stack Overflow" clone designed for users to ask questions, share knowledge, and build reputation within a developer community.
 
