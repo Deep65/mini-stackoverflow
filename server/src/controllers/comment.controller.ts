@@ -8,7 +8,6 @@ export const createComment = async (req: AuthRequest, res: Response) => {
   try {
     const { content, targetId, targetType } = req.body;
 
-    // Verify target exists
     if (targetType === VoteTargetType.Question) {
       const question = await Question.findById(targetId);
       if (!question) {
