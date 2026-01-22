@@ -8,134 +8,97 @@ import { calculateReputationChange } from '@/utils';
 
 export const vote = async (req: AuthRequest, res: Response) => {
   const { id: targetId } = req.params;
-  let { targetType, value } = req.body as { targetType: VoteTargetType; value: any };
+  const userId = req.user.userId;
 
-  // Allow string input for value (e.g. "1" or "-1")
-  if (typeof value === 'string') {
-    value = parseInt(value, 10);
+  let requestedValue =
+    typeof req.body.value === 'string' ? parseInt(req.body.value, 10) : req.body.value;
+
+  if (requestedValue !== VoteValue.Upvote && requestedValue !== VoteValue.Downvote) {
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: 'Invalid vote value. Must be 1 or -1.' });
   }
 
-  if (value !== VoteValue.Upvote && value !== VoteValue.Downvote) {
-    return res.status(StatusCodes.BAD_REQUEST).json({ message: 'Invalid vote value. Must be 1 or -1.' });
-  }
+  const { targetType } = req.body as { targetType: VoteTargetType };
+  const voteValue = requestedValue as VoteValue;
 
-  // Cast back to VoteValue
-  const voteValue = value as VoteValue;
-
-  let session: mongoose.mongo.ClientSession | null = null;
-  let useTransaction = false;
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
   try {
-    session = await mongoose.startSession();
-    session.startTransaction();
-    useTransaction = true;
-  } catch (error: any) {
-    // If startSession failed, session is null. If startTransaction failed, we might have a session but shouldn't use it for atomic ops improperly.
-    // If session exists but transaction failed, end it.
-    if (session) {
-      session.endSession();
-      session = null;
-    }
-  }
+    const sessionOptions = { session };
 
-  try {
-    // Pass session if it exists (Mongoose handles null session by ignoring it usually, but let's be safe)
-    const sessionOption = session ? { session } : {};
+    const [existingVote, targetDoc] = await Promise.all([
+      Vote.findOne({ user: userId, targetId, targetType }).session(session),
+      targetType === VoteTargetType.Question
+        ? Question.findById(targetId).session(session)
+        : Answer.findById(targetId).session(session),
+    ]);
 
-    const existingVote = await Vote.findOne({
-      user: req.user.userId,
-      targetId,
-      targetType,
-    }).setOptions(sessionOption);
-
-    let target;
-    if (targetType === VoteTargetType.Question) {
-      target = await Question.findById(targetId).setOptions(sessionOption);
-    } else {
-      target = await Answer.findById(targetId).setOptions(sessionOption);
-    }
-
-    if (!target) {
-      if (useTransaction && session) { await session.abortTransaction(); session.endSession(); }
+    if (!targetDoc) {
+      await session.abortTransaction();
       return res.status(StatusCodes.NOT_FOUND).json({ message: 'Target not found' });
     }
 
-    const author = await User.findById(target.author).setOptions(sessionOption);
-    if (!author) {
-      if (useTransaction && session) { await session.abortTransaction(); session.endSession(); }
+    const authorDoc = await User.findById(targetDoc.author).session(session);
+    if (!authorDoc) {
+      await session.abortTransaction();
       return res.status(StatusCodes.NOT_FOUND).json({ message: 'Author not found' });
     }
 
-    // Calculate Reputation Change
     const reputationChange = calculateReputationChange(targetType, voteValue, existingVote?.value);
 
-    // Update Vote Document
     if (existingVote) {
       if (existingVote.value === voteValue) {
-        await existingVote.deleteOne({ session }); // deleteOne supports session in options object
+        await Vote.deleteOne({ _id: existingVote._id }).session(session);
       } else {
         existingVote.value = voteValue;
-        await existingVote.save(sessionOption);
+        await existingVote.save(sessionOptions);
       }
     } else {
-      const vote = new Vote({
-        user: req.user.userId,
-        targetId,
-        targetType,
-        value: voteValue,
-      });
-      await vote.save(sessionOption);
+      await Vote.create(
+        [
+          {
+            user: userId,
+            targetId,
+            targetType,
+            value: voteValue,
+          },
+        ],
+        sessionOptions
+      );
     }
 
-    // Update Author Reputation
-    author.reputation = (author.reputation || 0) + reputationChange;
-    await author.save(sessionOption);
+    authorDoc.reputation = (authorDoc.reputation || 0) + reputationChange;
+    await authorDoc.save(sessionOptions);
 
-    // Update Target Arrays (Upvotes/Downvotes)
-    const t = target as any;
-    const userId = req.user.userId;
-    const userIdStr = userId.toString();
+    const target = targetDoc as any;
 
-    // Helper to remove user from array
-    const removeUser = (arrName: 'upvotes' | 'downvotes') => {
-      t[arrName] = t[arrName].filter((id: any) => id.toString() !== userIdStr);
-    };
+    target.upvotes = target.upvotes.filter((id: any) => id.toString() !== userId.toString());
+    target.downvotes = target.downvotes.filter((id: any) => id.toString() !== userId.toString());
 
-    if (existingVote) {
-      if (existingVote.value === voteValue) {
-        // Toggle Off: Remove from current array
-        if (voteValue === VoteValue.Upvote) removeUser('upvotes');
-        else removeUser('downvotes');
+    if (existingVote && existingVote.value === voteValue) {
+    } else {
+      if (voteValue === VoteValue.Upvote) {
+        target.upvotes.push(userId);
       } else {
-        // Flip: Remove from old, Add to new
-        if (voteValue === VoteValue.Upvote) {
-          removeUser('downvotes');
-          t.upvotes.push(userId);
-        } else {
-          removeUser('upvotes');
-          t.downvotes.push(userId);
-        }
+        target.downvotes.push(userId);
       }
-    } else {
-      // New Vote: Add to array
-      if (voteValue === VoteValue.Upvote) t.upvotes.push(userId);
-      else t.downvotes.push(userId);
-    }
-    
-    await t.save(sessionOption);
-
-    if (useTransaction && session) {
-      await session.commitTransaction();
-      session.endSession();
     }
 
-    res.json({ message: 'Vote recorded', reputationChange });
+    await target.save(sessionOptions);
+
+    // 6. Finalize
+    await session.commitTransaction();
+    res.json({ message: 'Vote processed successfully', reputationChange });
   } catch (err: any) {
-    if (useTransaction && session) {
-      await session.abortTransaction();
-      session.endSession();
-    }
+    await session.abortTransaction();
     console.error('Vote Error:', err.message);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).send('Vote failed: ' + err.message);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      message: 'Vote failed',
+      error: err.message,
+    });
+  } finally {
+    session.endSession();
   }
 };

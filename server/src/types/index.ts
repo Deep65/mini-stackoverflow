@@ -1,9 +1,8 @@
 import { Request } from 'express';
+import mongoose from 'mongoose';
 
 export interface AuthRequest extends Request {
   user: {
-    userId: string;
+    userId: mongoose.Types.ObjectId;
   };
 }
-
-

@@ -1,60 +1,97 @@
-# Knowledge Sharing Platform
+# 🧠 Knowledge Sharing Platform
 
-A mini "Stack Overflow" clone built with React, Node.js, Express, MongoDB, and TypeScript.
+A mini "Stack Overflow" clone designed for users to ask questions, share knowledge, and build reputation within a developer community.
 
-## Prerequisites
-- Node.js (v16+)
-- MongoDB (running locally on default port 27017)
+---
 
-## Getting Started
+## 🚀 Quick Start Guide
 
-### 1. Setup Backend (Server)
+Follow these simple steps to get the project running locally in minutes.
 
-Navigate to the server directory:
+### 1. Prerequisites
+
+Ensure you have the following installed:
+
+- [Node.js](https://nodejs.org/) (v16 or higher)
+- [MongoDB](https://www.mongodb.com/try/download/community) (running locally on port `27017`)
+
+### 2. Clone the Repository
+
+```bash
+git clone https://github.com/Deep65/mini-stackoverflow.git
+cd knowledge-sharing-platform
+```
+
+### 3. Setup the Backend (Server)
+
+Configuration is key! We need to set up the environment variables and install dependencies.
+
 ```bash
 cd server
+cp .env.example .env   # Create your environment file
+npm install            # Install dependencies
+npm run dev            # Start the server
 ```
 
-Install dependencies:
-```bash
-npm install
-```
+✅ The server will launch at **`http://localhost:5000`**
 
-Start the development server:
-```bash
-npm run dev
-```
-The server will start on `http://localhost:5000`.
+### 4. Setup the Frontend (Client)
 
-### 2. Setup Frontend (Client)
+Open a **new terminal** window/tab and set up the React client.
 
-Open a new terminal and navigate to the client directory:
 ```bash
 cd client
+cp .env.example .env   # Create your environment file
+npm install            # Install dependencies
+npm run dev            # Start the client
 ```
 
-Install dependencies:
-```bash
-npm install
+✅ The app will launch at **`http://localhost:5173`**
+
+---
+
+## ✨ Key Features
+
+This platform is packed with features to emulate a real-world Q&A site:
+
+- **🔐 Authentication**: Secure User Registration & Login (JWT-based).
+- **💬 Q&A System**:
+  - **Ask Questions**: Post detailed queries with rich text and tags.
+  - **Provide Answers**: Help others by contributing your knowledge.
+  - **Comments**: Discuss nuances in questions and answers.
+- **👍 Voting & Reputation**:
+  - **+10** rep for Answer Upvote
+  - **+5** rep for Question Upvote
+  - **-2** rep for Answer Downvote
+  - **-1** rep for Question Downvote
+
+---
+
+## 🛠️ Technology Stack
+
+| Area         | Technologies                                                        |
+| :----------- | :------------------------------------------------------------------ |
+| **Frontend** | React, TypeScript, Vite, Tailwind CSS, React Query, React Hook Form |
+| **Backend**  | Node.js, Express, TypeScript                                        |
+| **Database** | MongoDB, Mongoose (ODM)                                             |
+| **Auth**     | JSON Web Tokens (JWT)                                               |
+
+---
+
+## 📂 Project Structure
+
+```text
+knowledge-sharing-platform/
+├── client/           # Frontend React Application
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   └── ...
+├── server/           # Backend Express API
+│   ├── src/
+│   │   ├── controllers/
+│   │   ├── models/
+│   │   ├── routes/
+│   │   └── ...
+└── README.md
 ```
-
-Start the Vite development server:
-```bash
-npm run dev
-```
-The client will start on `http://localhost:5173`.
-
-## Features
-- **Authentication**: JWT-based login and registration.
-- **Questions**: Ask, list, search, view details, upvote/downvote.
-- **Answers**: Post answers, upvote/downvote.
-- **Reputation System**: 
-  - +10 for answer upvote
-  - -2 for answer downvote
-  - +5 for question upvote
-  - -1 for question downvote
-- **Tags & Search**: Indexed full-text search and tag tracking.
-
-## Technologies
-- **Frontend**: React, TypeScript, Tailwind CSS, Vite, React Hook Form, React Query (Axios), React Toastify.
-- **Backend**: Node.js, Express, TypeScript, Mongoose (MongoDB).
